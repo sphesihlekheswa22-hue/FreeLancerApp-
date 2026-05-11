@@ -1,0 +1,26 @@
+services:
+  # Flask API
+  - type: web
+    name: campus-gigs-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -b 0.0.0.0:$PORT run:app
+    envVars:
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+
+  # Vite/React frontend (static)
+  - type: web
+    name: campus-gigs-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Set this in Render to the deployed API URL, e.g. https://campus-gigs-api.onrender.com
+      - key: VITE_API_BASE_URL
+        sync: false
