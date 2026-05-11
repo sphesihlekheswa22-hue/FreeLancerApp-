@@ -30,11 +30,11 @@ function PasswordStrength({ password }: { password: string }) {
 
   const score = getStrength(password)
   const levels = [
-    { label: 'Weak', color: '#ef4444' },
-    { label: 'Fair', color: '#f97316' },
-    { label: 'Good', color: '#eab308' },
-    { label: 'Strong', color: '#22c55e' },
-    { label: 'Excellent', color: '#10b981' },
+    { label: 'Weak', color: 'var(--error)' },
+    { label: 'Fair', color: 'var(--warning)' },
+    { label: 'Good', color: 'var(--warning)' },
+    { label: 'Strong', color: 'var(--success)' },
+    { label: 'Excellent', color: 'var(--success)' },
   ]
 
   if (!password) return null
@@ -502,7 +502,7 @@ export default function RegisterPage({ onAuthed }: { onAuthed: () => void }) {
         }
 
         .gradient-text {
-          background: linear-gradient(135deg, #6366f1, #ec4899, #8b5cf6);
+          background: var(--accent-gradient);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;

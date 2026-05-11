@@ -163,7 +163,7 @@ function PasswordStrength({ password }: { password: string }) {
   }, [password])
 
   const labels = ['Weak', 'Fair', 'Good', 'Strong', 'Excellent']
-  const colors = ['#ef4444', '#f59e0b', '#10b981', '#10b981', '#7c3aed']
+  const colors = ['var(--error)', 'var(--warning)', 'var(--success)', 'var(--success)', 'var(--accent)']
 
   if (!password) return null
 
