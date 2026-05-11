@@ -3,12 +3,13 @@ services:
   - type: web
     name: campus-gigs-api
     runtime: python
-    pythonVersion: 3.12.7
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -b 0.0.0.0:$PORT run:app
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL

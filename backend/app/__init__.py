@@ -16,9 +16,13 @@ def create_app() -> Flask:
     load_dotenv()
     app = Flask(__name__)
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-        "DATABASE_URL", "sqlite:///campus_gigs.sqlite"
-    )
+    db_url = os.getenv("DATABASE_URL", "sqlite:///campus_gigs.sqlite").strip()
+    # Prefer psycopg v3 driver when using Postgres.
+    # Render/managed environments may preinstall psycopg2, which can cause SQLAlchemy
+    # to pick the psycopg2 dialect unless explicitly specified.
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret-change-me")
 
