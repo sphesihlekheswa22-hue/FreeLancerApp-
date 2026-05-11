@@ -145,115 +145,102 @@ export default function App() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="desktop-nav">
-            {!isAuthed ? (
-              <>
-                <NavLink to="/gigs" icon="💼">Gigs</NavLink>
-                <NavLink to="/jobs" icon="💻">Jobs</NavLink>
-                <NavLink to="/login" icon="🔑">Login</NavLink>
-                <Link to="/register" className="nav-cta-btn">
-                  Get Started
-                </Link>
-              </>
-            ) : (
-              <>
-                <NavLink to="/dashboard" icon="📊">Dashboard</NavLink>
-                <NavLink to="/gigs" icon="💼">Gigs</NavLink>
-                <NavLink to="/jobs" icon="💻">Jobs</NavLink>
-                <NavLink to="/applications" icon="📋">Applications</NavLink>
-                <NavLink to="/messages" icon="💬">Messages</NavLink>
-                <NavLink to="/profile" icon="👤">Profile</NavLink>
+          {!isAuthed ? (
+            <nav className="desktop-nav">
+              <NavLink to="/gigs" icon="💼">Gigs</NavLink>
+              <NavLink to="/jobs" icon="💻">Jobs</NavLink>
+              <NavLink to="/login" icon="🔑">Login</NavLink>
+              <Link to="/register" className="nav-cta-btn">
+                Get Started
+              </Link>
+            </nav>
+          ) : (
+            <div className="header-actions">
+              {/* Notification Dropdown */}
+              <div className="dropdown-root" ref={notif.rootRef} data-open={notif.open}>
+                <button
+                  type="button"
+                  className="notif-btn"
+                  {...notif.buttonProps}
+                  onClick={async () => {
+                    const next = !notif.open
+                    notif.setOpen(next)
+                    if (next) await refreshNotifications()
+                  }}
+                  title="Notifications"
+                >
+                  <span className="notif-icon">🔔</span>
+                  {unreadCount > 0 && (
+                    <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                  )}
+                </button>
 
-                {/* Notification Dropdown */}
-                <div className="dropdown-root" ref={notif.rootRef} data-open={notif.open}>
-                  <button
-                    type="button"
-                    className="notif-btn"
-                    {...notif.buttonProps}
-                    onClick={async () => {
-                      const next = !notif.open
-                      notif.setOpen(next)
-                      if (next) await refreshNotifications()
-                    }}
-                    title="Notifications"
-                  >
-                    <span className="notif-icon">🔔</span>
+                <div className={`notif-menu dropdown-menu ${notif.open ? 'open' : ''}`} {...notif.menuProps} tabIndex={-1}>
+                  <div className="notif-header">
+                    <span className="notif-title">Notifications</span>
                     {unreadCount > 0 && (
-                      <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                      <button
+                        type="button"
+                        className="mark-all-btn"
+                        onClick={async () => {
+                          await markAllNotificationsRead()
+                          await refreshNotifications()
+                        }}
+                      >
+                        Mark all read
+                      </button>
                     )}
-                  </button>
-
-                  <div className={`notif-menu dropdown-menu ${notif.open ? 'open' : ''}`} {...notif.menuProps} tabIndex={-1}>
-                    <div className="notif-header">
-                      <span className="notif-title">Notifications</span>
-                      {unreadCount > 0 && (
-                        <button
-                          type="button"
-                          className="mark-all-btn"
-                          onClick={async () => {
-                            await markAllNotificationsRead()
-                            await refreshNotifications()
-                          }}
-                        >
-                          Mark all read
-                        </button>
-                      )}
-                    </div>
-                    <div className="notif-list">
-                      {notifications.length === 0 ? (
-                        <div className="notif-empty">
-                          <span className="notif-empty-icon">📭</span>
-                          <p>No notifications yet</p>
-                        </div>
-                      ) : (
-                        notifications.slice(0, 12).map((n) => (
-                          <div key={n.id} className={`notif-item ${n.is_read ? '' : 'unread'}`}>
-                            <div className="notif-content">
-                              <p className="notif-message">{n.message}</p>
-                              {n.link && (
-                                <Link to={n.link} onClick={() => notif.close()} className="notif-link">
-                                  View details →
-                                </Link>
-                              )}
-                            </div>
-                            {!n.is_read && (
-                              <button
-                                type="button"
-                                className="notif-mark-btn"
-                                title="Mark as read"
-                                onClick={async () => {
-                                  await markNotificationRead(n.id)
-                                  await refreshNotifications()
-                                }}
-                              >
-                                ✓
-                              </button>
+                  </div>
+                  <div className="notif-list">
+                    {notifications.length === 0 ? (
+                      <div className="notif-empty">
+                        <span className="notif-empty-icon">📭</span>
+                        <p>No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications.slice(0, 12).map((n) => (
+                        <div key={n.id} className={`notif-item ${n.is_read ? '' : 'unread'}`}>
+                          <div className="notif-content">
+                            <p className="notif-message">{n.message}</p>
+                            {n.link && (
+                              <Link to={n.link} onClick={() => notif.close()} className="notif-link">
+                                View details →
+                              </Link>
                             )}
                           </div>
-                        ))
-                      )}
-                    </div>
+                          {!n.is_read && (
+                            <button
+                              type="button"
+                              className="notif-mark-btn"
+                              title="Mark as read"
+                              onClick={async () => {
+                                await markNotificationRead(n.id)
+                                await refreshNotifications()
+                              }}
+                            >
+                              ✓
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
+              </div>
 
-                {currentUser?.role === 'admin' && (
-                  <NavLink to="/admin" icon="⚡">Admin</NavLink>
-                )}
-
-                <button
-                  className="logout-btn"
-                  onClick={() => {
-                    setToken(null)
-                    setIsAuthed(false)
-                    setCurrentUser(null)
-                    setMobileMenuOpen(false)
-                  }}
-                >
-                  <span>Logout</span>
-                </button>
-              </>
-            )}
-          </nav>
+              <button
+                className="logout-btn"
+                onClick={() => {
+                  setToken(null)
+                  setIsAuthed(false)
+                  setCurrentUser(null)
+                  setMobileMenuOpen(false)
+                }}
+              >
+                <span>Logout</span>
+              </button>
+            </div>
+          )}
 
           {/* Mobile Menu Toggle */}
           <button
@@ -306,9 +293,44 @@ export default function App() {
         </div>
       </header>
 
-      {/* ─── Main Content ──────────────────────────────────────── */}
-      <main className="app-main">
-        <Routes>
+      {/* ─── App Shell (Sidebar + Content) ─────────────────────── */}
+      <div className="app-shell">
+        {isAuthed ? (
+          <aside className="app-sidebar">
+            <div className="sidebar-title">Navigation</div>
+            <div className="sidebar-links">
+              <NavLink to="/dashboard" icon="📊">Dashboard</NavLink>
+              <NavLink to="/gigs" icon="💼">Gigs</NavLink>
+              <NavLink to="/jobs" icon="💻">Jobs</NavLink>
+              <NavLink to="/applications" icon="📋">Applications</NavLink>
+              <NavLink to="/top-freelancers" icon="🏆">Top Rated</NavLink>
+              <NavLink to="/messages" icon="💬">Messages</NavLink>
+              <NavLink to="/profile" icon="👤">Profile</NavLink>
+              {currentUser?.role === 'admin' ? <NavLink to="/admin" icon="⚡">Admin</NavLink> : null}
+            </div>
+            <div className="sidebar-footer">
+              <div className="sidebar-user">
+                <div className="sidebar-user-name">{currentUser?.name ?? 'Account'}</div>
+                <div className="sidebar-user-email">{currentUser?.email ?? ''}</div>
+              </div>
+              <button
+                className="sidebar-logout"
+                onClick={() => {
+                  setToken(null)
+                  setIsAuthed(false)
+                  setCurrentUser(null)
+                  setMobileMenuOpen(false)
+                }}
+              >
+                🚪 Logout
+              </button>
+            </div>
+          </aside>
+        ) : null}
+
+        {/* ─── Main Content ──────────────────────────────────────── */}
+        <main className="app-main">
+          <Routes>
           <Route path="/" element={isAuthed ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
           <Route path="/dashboard" element={<RequireAuth isAuthed={isAuthed}><DashboardPage isAuthed={isAuthed} /></RequireAuth>} />
           <Route path="/login" element={<LoginPage onAuthed={async () => { setIsAuthed(true); try { setCurrentUser(await me()) } catch {} }} />} />
@@ -325,8 +347,9 @@ export default function App() {
           <Route path="/profile" element={<RequireAuth isAuthed={isAuthed}><ProfilePage isAuthed={isAuthed} /></RequireAuth>} />
           <Route path="/users/:userId" element={<UserProfilePage />} />
           <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </main>
+          </Routes>
+        </main>
+      </div>
 
       {/* ─── Footer ──────────────────────────────────────────────── */}
       <footer className="app-footer">
@@ -382,6 +405,86 @@ export default function App() {
           position: relative;
         }
 
+        /* ===== Shell Layout (Sidebar) ===== */
+        .app-shell {
+          flex: 1;
+          display: flex;
+          width: 100%;
+          max-width: 1400px;
+          margin: 0 auto;
+        }
+
+        .app-sidebar {
+          width: 270px;
+          flex: 0 0 270px;
+          padding: 18px 14px;
+          border-right: 1px solid var(--border-light);
+          background: rgba(255, 255, 255, 0.7);
+          backdrop-filter: blur(16px) saturate(160%);
+          -webkit-backdrop-filter: blur(16px) saturate(160%);
+          position: sticky;
+          top: 74px;
+          height: calc(100vh - 74px);
+          overflow: auto;
+        }
+
+        .sidebar-title {
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--text-secondary);
+          padding: 8px 10px;
+        }
+
+        .sidebar-links {
+          display: grid;
+          gap: 6px;
+          padding: 6px;
+        }
+
+        .sidebar-footer {
+          margin-top: 14px;
+          padding: 12px;
+          border-top: 1px solid var(--border-light);
+          display: grid;
+          gap: 10px;
+        }
+
+        .sidebar-user-name {
+          font-weight: 900;
+          color: var(--text-h);
+          line-height: 1.1;
+        }
+
+        .sidebar-user-email {
+          margin-top: 4px;
+          font-size: 12px;
+          color: var(--text-secondary);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .sidebar-logout {
+          width: 100%;
+          justify-content: center;
+          background: var(--bg-secondary);
+          color: var(--text-h);
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          padding: 10px 12px;
+          font-weight: 800;
+        }
+
+        .sidebar-logout:hover {
+          background: var(--accent-bg);
+          border-color: var(--accent-border);
+          color: var(--accent);
+          box-shadow: var(--shadow-sm);
+          transform: translateY(-1px);
+        }
+
         .app-background {
           position: fixed;
           inset: 0;
@@ -433,6 +536,12 @@ export default function App() {
           align-items: center;
           justify-content: space-between;
           padding: var(--space-3) var(--space-6);
+        }
+
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
         }
 
         .brand {
@@ -909,9 +1018,7 @@ export default function App() {
         .app-main {
           flex: 1;
           padding: var(--space-8) var(--space-6);
-          max-width: 1200px;
           width: 100%;
-          margin: 0 auto;
         }
 
         /* ===== Footer ===== */
@@ -987,6 +1094,17 @@ export default function App() {
 
         /* ===== Responsive ===== */
         @media (max-width: 1024px) {
+          .app-shell {
+            display: block;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+          }
+
+          .app-sidebar {
+            display: none;
+          }
+
           .desktop-nav {
             display: none;
           }
