@@ -24,6 +24,13 @@ def create_app() -> Flask:
         db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    # Neon / managed Postgres often closes idle SSL connections; without this the pool
+    # can hand out dead sockets and requests fail with "SSL connection has been closed".
+    if "sqlite" not in db_url.lower():
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "pool_pre_ping": True,
+            "pool_recycle": 280,
+        }
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret-change-me")
     app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
 
