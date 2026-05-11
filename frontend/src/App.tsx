@@ -38,35 +38,24 @@ function RequireAdmin({ isAuthed, role, children }: { isAuthed: boolean; role: s
   return <>{children}</>
 }
 
-function NavLink({ to, children, icon }: { to: string; children: React.ReactNode; icon?: string }) {
-  const location = useLocation()
-  const isActive = location.pathname === to || location.pathname.startsWith(to + '/')
-
-  return (
-    <Link to={to} className={`nav-link ${isActive ? 'active' : ''}`}>
-      {icon && <span className="nav-link-icon">{icon}</span>}
-      <span className="nav-link-text">{children}</span>
-      {isActive && <span className="nav-link-indicator" />}
-    </Link>
-  )
-}
-
-type CurrentUser = {
-  id: number
-  name: string
-  email: string
-  role: string
+type NavItem = {
+  to: string
+  label: string
+  icon: string
+  auth?: boolean
+  admin?: boolean
 }
 
 export default function App() {
   const [isReady, setIsReady] = useState(false)
   const [isAuthed, setIsAuthed] = useState(Boolean(getToken()))
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
-  const [scrolled, setScrolled] = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{ id: number; name: string; email: string; role: string } | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const notif = useDropdown()
-  const mobileMenuRef = useRef<HTMLDivElement>(null)
+  const location = useLocation()
+  const sidebarRef = useRef<HTMLDivElement>(null)
 
   const refreshNotifications = useCallback(async () => {
     if (!isAuthed) return
@@ -102,26 +91,51 @@ export default function App() {
     refreshNotifications()
   }, [refreshNotifications])
 
+  // Close mobile sidebar on route change
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 10)
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+    setMobileSidebarOpen(false)
+  }, [location.pathname])
 
-  // Close mobile menu on click outside
+  // Close mobile sidebar on click outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(e.target as Node)) {
-        setMobileMenuOpen(false)
+      if (sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
+        setMobileSidebarOpen(false)
       }
     }
-    if (mobileMenuOpen) {
+    if (mobileSidebarOpen) {
       document.addEventListener('mousedown', handleClick)
       return () => document.removeEventListener('mousedown', handleClick)
     }
-  }, [mobileMenuOpen])
+  }, [mobileSidebarOpen])
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
+
+  const publicNav: NavItem[] = [
+    { to: '/gigs', label: 'Gigs', icon: '💼' },
+    { to: '/jobs', label: 'Jobs', icon: '💻' },
+  ]
+
+  const authedNav: NavItem[] = [
+    { to: '/dashboard', label: 'Dashboard', icon: '📊', auth: true },
+    { to: '/gigs', label: 'Gigs', icon: '💼' },
+    { to: '/jobs', label: 'Jobs', icon: '💻' },
+    { to: '/applications', label: 'Applications', icon: '📋', auth: true },
+    { to: '/messages', label: 'Messages', icon: '💬', auth: true },
+    { to: '/top-freelancers', label: 'Top Rated', icon: '🏆', auth: true },
+    { to: '/profile', label: 'Profile', icon: '👤', auth: true },
+  ]
+
+  const adminNav: NavItem[] = currentUser?.role === 'admin'
+    ? [{ to: '/admin', label: 'Admin', icon: '⚡', admin: true }]
+    : []
+
+  const activeNav = isAuthed ? [...authedNav, ...adminNav] : publicNav
+
+  const isActive = (path: string) => {
+    if (path === '/dashboard') return location.pathname === '/dashboard'
+    return location.pathname === path || location.pathname.startsWith(path + '/')
+  }
 
   if (!isReady) {
     return (
@@ -134,44 +148,63 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <div className="app-background" />
+      {/* Mobile Overlay */}
+      {mobileSidebarOpen && <div className="mobile-overlay" onClick={() => setMobileSidebarOpen(false)} />}
 
-      {/* ─── Header ────────────────────────────────────────────── */}
-      <header className={`app-header ${scrolled ? 'scrolled' : ''}`}>
-        <div className="header-inner">
-          <Link className="brand" to="/" onClick={() => setMobileMenuOpen(false)}>
-            <div className="brand-icon">🎓</div>
-            <span className="brand-text">Campus Gigs</span>
+      {/* ─── Sidebar ─────────────────────────────────────────── */}
+      <aside
+        ref={sidebarRef}
+        className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileSidebarOpen ? 'mobile-open' : ''}`}
+      >
+        <div className="sidebar-header">
+          <Link className="sidebar-brand" to={isAuthed ? '/dashboard' : '/'} onClick={() => setMobileSidebarOpen(false)}>
+            <div className="sidebar-brand-icon">🎓</div>
+            <span className="sidebar-brand-text">Campus Gigs</span>
           </Link>
+          <button
+            className="sidebar-collapse-btn"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+          >
+            {sidebarCollapsed ? '→' : '←'}
+          </button>
+        </div>
 
-          {/* Desktop Navigation */}
-          {!isAuthed ? (
-            <nav className="desktop-nav">
-              <NavLink to="/gigs" icon="💼">Gigs</NavLink>
-              <NavLink to="/jobs" icon="💻">Jobs</NavLink>
-              <NavLink to="/login" icon="🔑">Login</NavLink>
-              <Link to="/register" className="nav-cta-btn">
-                Get Started
-              </Link>
-            </nav>
-          ) : (
-            <div className="header-actions">
-              {/* Notification Dropdown */}
-              <div className="dropdown-root" ref={notif.rootRef} data-open={notif.open}>
+        <nav className="sidebar-nav">
+          {activeNav.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`sidebar-link ${isActive(item.to) ? 'active' : ''}`}
+              title={sidebarCollapsed ? item.label : undefined}
+            >
+              <span className="sidebar-link-icon">{item.icon}</span>
+              <span className="sidebar-link-text">{item.label}</span>
+              {isActive(item.to) && <span className="sidebar-link-indicator" />}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          {isAuthed ? (
+            <>
+              {/* Notification Button in Sidebar */}
+              <div className="dropdown-root sidebar-notif-root" ref={notif.rootRef} data-open={notif.open}>
                 <button
                   type="button"
-                  className="notif-btn"
+                  className={`sidebar-link sidebar-notif-btn ${notif.open ? 'active' : ''}`}
                   {...notif.buttonProps}
                   onClick={async () => {
                     const next = !notif.open
                     notif.setOpen(next)
                     if (next) await refreshNotifications()
                   }}
-                  title="Notifications"
+                  title={sidebarCollapsed ? 'Notifications' : undefined}
                 >
-                  <span className="notif-icon">🔔</span>
+                  <span className="sidebar-link-icon">🔔</span>
+                  <span className="sidebar-link-text">Notifications</span>
                   {unreadCount > 0 && (
-                    <span className="notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+                    <span className="sidebar-notif-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
                   )}
                 </button>
 
@@ -228,149 +261,112 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="sidebar-user">
+                <div className="sidebar-avatar">
+                  {currentUser?.name?.charAt(0).toUpperCase() || '👤'}
+                </div>
+                <div className="sidebar-user-info">
+                  <p className="sidebar-user-name">{currentUser?.name}</p>
+                  <p className="sidebar-user-role">{currentUser?.role}</p>
+                </div>
+              </div>
+
               <button
-                className="logout-btn"
+                className="sidebar-link sidebar-logout"
                 onClick={() => {
                   setToken(null)
                   setIsAuthed(false)
                   setCurrentUser(null)
-                  setMobileMenuOpen(false)
+                  setMobileSidebarOpen(false)
                 }}
+                title={sidebarCollapsed ? 'Logout' : undefined}
               >
-                <span>Logout</span>
+                <span className="sidebar-link-icon">🚪</span>
+                <span className="sidebar-link-text">Logout</span>
               </button>
-            </div>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className={`sidebar-link ${isActive('/login') ? 'active' : ''}`}>
+                <span className="sidebar-link-icon">🔑</span>
+                <span className="sidebar-link-text">Login</span>
+              </Link>
+              <Link to="/register" className="sidebar-cta">
+                <span className="sidebar-link-icon">✨</span>
+                <span className="sidebar-link-text">Get Started</span>
+              </Link>
+            </>
           )}
+        </div>
+      </aside>
 
-          {/* Mobile Menu Toggle */}
+      {/* ─── Main Content Area ───────────────────────────────── */}
+      <div className="content-area">
+        {/* Top Bar (minimal - just mobile toggle + page title) */}
+        <header className="content-header">
           <button
-            className={`mobile-toggle ${mobileMenuOpen ? 'open' : ''}`}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="mobile-menu-toggle"
+            onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             aria-label="Toggle menu"
           >
             <span />
             <span />
             <span />
           </button>
-        </div>
+          <div className="content-header-title">
+            {activeNav.find(n => isActive(n.to))?.label || 'Campus Gigs'}
+          </div>
+          <div className="content-header-spacer" />
+        </header>
 
-        {/* Mobile Navigation */}
-        <div ref={mobileMenuRef} className={`mobile-nav ${mobileMenuOpen ? 'open' : ''}`}>
-          {!isAuthed ? (
-            <>
-              <NavLink to="/gigs" icon="💼">Gigs</NavLink>
-              <NavLink to="/jobs" icon="💻">Jobs</NavLink>
-              <NavLink to="/login" icon="🔑">Login</NavLink>
-              <Link to="/register" className="mobile-cta" onClick={() => setMobileMenuOpen(false)}>
-                Get Started
-              </Link>
-            </>
-          ) : (
-            <>
-              <NavLink to="/dashboard" icon="📊">Dashboard</NavLink>
-              <NavLink to="/gigs" icon="💼">Gigs</NavLink>
-              <NavLink to="/jobs" icon="💻">Jobs</NavLink>
-              <NavLink to="/applications" icon="📋">Applications</NavLink>
-              <NavLink to="/top-freelancers" icon="🏆">Top Rated</NavLink>
-              <NavLink to="/messages" icon="💬">Messages</NavLink>
-              <NavLink to="/profile" icon="👤">Profile</NavLink>
-              {currentUser?.role === 'admin' && (
-                <NavLink to="/admin" icon="⚡">Admin</NavLink>
-              )}
-              <button
-                className="mobile-logout"
-                onClick={() => {
-                  setToken(null)
-                  setIsAuthed(false)
-                  setCurrentUser(null)
-                  setMobileMenuOpen(false)
-                }}
-              >
-                <span>🚪</span> Logout
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-
-      {/* ─── App Shell (Sidebar + Content) ─────────────────────── */}
-      <div className="app-shell">
-        {isAuthed ? (
-          <aside className="app-sidebar">
-            <div className="sidebar-title">Navigation</div>
-            <div className="sidebar-links">
-              <NavLink to="/dashboard" icon="📊">Dashboard</NavLink>
-              <NavLink to="/gigs" icon="💼">Gigs</NavLink>
-              <NavLink to="/jobs" icon="💻">Jobs</NavLink>
-              <NavLink to="/applications" icon="📋">Applications</NavLink>
-              <NavLink to="/top-freelancers" icon="🏆">Top Rated</NavLink>
-              <NavLink to="/messages" icon="💬">Messages</NavLink>
-              <NavLink to="/profile" icon="👤">Profile</NavLink>
-              {currentUser?.role === 'admin' ? <NavLink to="/admin" icon="⚡">Admin</NavLink> : null}
-            </div>
-            <div className="sidebar-footer">
-              <div className="sidebar-user">
-                <div className="sidebar-user-name">{currentUser?.name ?? 'Account'}</div>
-                <div className="sidebar-user-email">{currentUser?.email ?? ''}</div>
-              </div>
-              <button
-                className="sidebar-logout"
-                onClick={() => {
-                  setToken(null)
-                  setIsAuthed(false)
-                  setCurrentUser(null)
-                  setMobileMenuOpen(false)
-                }}
-              >
-                🚪 Logout
-              </button>
-            </div>
-          </aside>
-        ) : null}
-
-        {/* ─── Main Content ──────────────────────────────────────── */}
         <main className="app-main">
           <Routes>
-          <Route path="/" element={isAuthed ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
-          <Route path="/dashboard" element={<RequireAuth isAuthed={isAuthed}><DashboardPage isAuthed={isAuthed} /></RequireAuth>} />
-          <Route path="/login" element={<LoginPage onAuthed={async () => { setIsAuthed(true); try { setCurrentUser(await me()) } catch {} }} />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/register" element={<RegisterPage onAuthed={async () => { setIsAuthed(true); try { setCurrentUser(await me()) } catch {} }} />} />
-          <Route path="/gigs" element={<GigsPage isAuthed={isAuthed} />} />
-          <Route path="/gigs/:gigId" element={<GigDetailPage />} />
-          <Route path="/jobs" element={<JobsPage isAuthed={isAuthed} />} />
-          <Route path="/jobs/:jobId" element={<JobDetailPage isAuthed={isAuthed} />} />
-          <Route path="/applications" element={<RequireAuth isAuthed={isAuthed}><ApplicationsPage isAuthed={isAuthed} /></RequireAuth>} />
-          <Route path="/top-freelancers" element={<RequireAuth isAuthed={isAuthed}><TopFreelancersPage /></RequireAuth>} />
-          <Route path="/admin" element={<RequireAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}><AdminDashboardPage /></RequireAdmin>} />
-          <Route path="/messages" element={<RequireAuth isAuthed={isAuthed}><MessagesPage isAuthed={isAuthed} /></RequireAuth>} />
-          <Route path="/profile" element={<RequireAuth isAuthed={isAuthed}><ProfilePage isAuthed={isAuthed} /></RequireAuth>} />
-          <Route path="/users/:userId" element={<UserProfilePage />} />
-          <Route path="*" element={<NotFoundPage />} />
+            <Route path="/" element={isAuthed ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
+            <Route path="/dashboard" element={<RequireAuth isAuthed={isAuthed}><DashboardPage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route path="/login" element={<LoginPage onAuthed={async () => { setIsAuthed(true); try { setCurrentUser(await me()) } catch {} }} />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/register" element={<RegisterPage onAuthed={async () => { setIsAuthed(true); try { setCurrentUser(await me()) } catch {} }} />} />
+            <Route path="/gigs" element={<GigsPage isAuthed={isAuthed} />} />
+            <Route path="/gigs/:gigId" element={<GigDetailPage />} />
+            <Route path="/jobs" element={<JobsPage isAuthed={isAuthed} />} />
+            <Route path="/jobs/:jobId" element={<JobDetailPage isAuthed={isAuthed} />} />
+            <Route path="/applications" element={<RequireAuth isAuthed={isAuthed}><ApplicationsPage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route path="/top-freelancers" element={<RequireAuth isAuthed={isAuthed}><TopFreelancersPage /></RequireAuth>} />
+            <Route path="/admin" element={<RequireAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}><AdminDashboardPage /></RequireAdmin>} />
+            <Route path="/messages" element={<RequireAuth isAuthed={isAuthed}><MessagesPage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route path="/profile" element={<RequireAuth isAuthed={isAuthed}><ProfilePage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route path="/users/:userId" element={<UserProfilePage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
+
+        <footer className="app-footer">
+          <div className="footer-content">
+            <div className="footer-brand">
+              <div className="footer-brand-icon">🎓</div>
+              <span>Campus Gigs</span>
+            </div>
+            <p className="footer-tagline">Connecting students with opportunities. Built for the campus community.</p>
+            <div className="footer-links">
+              <a href="#">About</a>
+              <a href="#">Privacy</a>
+              <a href="#">Terms</a>
+              <a href="#">Contact</a>
+            </div>
+            <p className="footer-copyright">© 2026 Campus Gigs. All rights reserved.</p>
+          </div>
+        </footer>
       </div>
 
-      {/* ─── Footer ──────────────────────────────────────────────── */}
-      <footer className="app-footer">
-        <div className="footer-content">
-          <div className="footer-brand">
-            <div className="footer-brand-icon">🎓</div>
-            <span>Campus Gigs</span>
-          </div>
-          <p className="footer-tagline">Connecting students with opportunities. Built for the campus community.</p>
-          <div className="footer-links">
-            <a href="#">About</a>
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
-            <a href="#">Contact</a>
-          </div>
-          <p className="footer-copyright">© 2026 Campus Gigs. All rights reserved.</p>
-        </div>
-      </footer>
-
-      {/* ─── Global Styles (App-specific) ──────────────────────── */}
+      {/* ─── Global Styles ─────────────────────────────────────── */}
       <style>{`
+        /* ===== CSS Variables ===== */
+        :root {
+          --sidebar-width: 260px;
+          --sidebar-collapsed: 72px;
+          --header-height: 64px;
+        }
+
         /* ===== App Loader ===== */
         .app-loader {
           min-height: 100vh;
@@ -401,166 +397,62 @@ export default function App() {
         .app-container {
           min-height: 100vh;
           display: flex;
-          flex-direction: column;
-          position: relative;
+          background: var(--bg);
         }
 
-        /* ===== Shell Layout (Sidebar) ===== */
-        .app-shell {
-          flex: 1;
-          display: flex;
-          width: 100%;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        .app-sidebar {
-          width: 270px;
-          flex: 0 0 270px;
-          padding: 18px 14px;
-          border-right: 1px solid var(--border-light);
-          background: rgba(255, 255, 255, 0.7);
-          backdrop-filter: blur(16px) saturate(160%);
-          -webkit-backdrop-filter: blur(16px) saturate(160%);
-          position: sticky;
-          top: 74px;
-          height: calc(100vh - 74px);
-          overflow: auto;
-        }
-
-        .sidebar-title {
-          font-size: 12px;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: var(--text-secondary);
-          padding: 8px 10px;
-        }
-
-        .sidebar-links {
-          display: grid;
-          gap: 6px;
-          padding: 6px;
-        }
-
-        .sidebar-footer {
-          margin-top: 14px;
-          padding: 12px;
-          border-top: 1px solid var(--border-light);
-          display: grid;
-          gap: 10px;
-        }
-
-        .sidebar-user-name {
-          font-weight: 900;
-          color: var(--text-h);
-          line-height: 1.1;
-        }
-
-        .sidebar-user-email {
-          margin-top: 4px;
-          font-size: 12px;
-          color: var(--text-secondary);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .sidebar-logout {
-          width: 100%;
-          justify-content: center;
-          background: var(--bg-secondary);
-          color: var(--text-h);
-          border: 1px solid var(--border);
-          border-radius: 14px;
-          padding: 10px 12px;
-          font-weight: 800;
-        }
-
-        .sidebar-logout:hover {
-          background: var(--accent-bg);
-          border-color: var(--accent-border);
-          color: var(--accent);
-          box-shadow: var(--shadow-sm);
-          transform: translateY(-1px);
-        }
-
-        .app-background {
+        /* ===== Mobile Overlay ===== */
+        .mobile-overlay {
           position: fixed;
           inset: 0;
-          z-index: -1;
-          pointer-events: none;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 90;
+          backdrop-filter: blur(4px);
+        }
+
+        /* ===== Sidebar ===== */
+        .sidebar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          height: 100vh;
+          width: var(--sidebar-width);
+          background: var(--surface);
+          border-right: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          z-index: 100;
+          transition: width 0.3s ease, transform 0.3s ease;
           overflow: hidden;
         }
 
-        .app-background::before {
-          content: '';
-          position: absolute;
-          top: -50%;
-          left: -50%;
-          width: 200%;
-          height: 200%;
-          background:
-            radial-gradient(ellipse 80% 50% at 20% 40%, rgba(124, 58, 237, 0.05) 0%, transparent 50%),
-            radial-gradient(ellipse 60% 40% at 80% 60%, rgba(168, 85, 247, 0.03) 0%, transparent 50%);
-          animation: bgShift 25s ease-in-out infinite;
+        .sidebar.collapsed {
+          width: var(--sidebar-collapsed);
         }
 
-        @keyframes bgShift {
-          0%, 100% { transform: translate(0, 0); }
-          50% { transform: translate(2%, 1%); }
-        }
-
-        /* ===== Header ===== */
-        .app-header {
-          position: sticky;
-          top: 0;
-          z-index: 100;
-          background: rgba(255, 255, 255, 0.85);
-          backdrop-filter: blur(20px) saturate(180%);
-          -webkit-backdrop-filter: blur(20px) saturate(180%);
-          border-bottom: 1px solid var(--border-light);
-          transition: all var(--transition-base);
-        }
-
-        .app-header.scrolled {
-          box-shadow: var(--shadow-md);
-          border-bottom-color: transparent;
-          background: rgba(255, 255, 255, 0.95);
-        }
-
-        .header-inner {
-          max-width: 1400px;
-          margin: 0 auto;
+        .sidebar-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: var(--space-3) var(--space-6);
+          padding: var(--space-4) var(--space-4) var(--space-2);
+          border-bottom: 1px solid var(--border-light);
+          min-height: var(--header-height);
         }
 
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-        }
-
-        .brand {
+        .sidebar-brand {
           display: flex;
           align-items: center;
           gap: var(--space-3);
-          font-family: var(--font-heading);
-          font-size: 1.35rem;
-          font-weight: 800;
+          text-decoration: none;
           color: var(--text-h);
-          letter-spacing: -0.03em;
-          transition: transform var(--transition-fast);
+          font-family: var(--font-heading);
+          font-weight: 800;
+          font-size: 1.2rem;
+          letter-spacing: -0.02em;
+          white-space: nowrap;
+          overflow: hidden;
         }
 
-        .brand:hover {
-          transform: scale(1.02);
-        }
-
-        .brand-icon {
+        .sidebar-brand-icon {
           width: 40px;
           height: 40px;
           background: var(--accent-gradient);
@@ -571,140 +463,250 @@ export default function App() {
           color: white;
           font-size: 1.25rem;
           box-shadow: var(--shadow-accent);
-          transition: box-shadow 0.3s ease;
+          flex-shrink: 0;
         }
 
-        .brand:hover .brand-icon {
-          box-shadow: 0 10px 40px -8px rgba(37, 99, 235, 0.5);
+        .sidebar-brand-text {
+          transition: opacity 0.2s ease;
         }
 
-        /* ===== Desktop Nav ===== */
-        .desktop-nav {
+        .sidebar.collapsed .sidebar-brand-text {
+          opacity: 0;
+          width: 0;
+        }
+
+        .sidebar-collapse-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: var(--radius-md);
+          border: 1px solid var(--border);
+          background: var(--bg-secondary);
+          color: var(--text-secondary);
+          cursor: pointer;
           display: flex;
           align-items: center;
-          gap: var(--space-1);
+          justify-content: center;
+          font-size: 0.875rem;
+          transition: all var(--transition-fast);
+          flex-shrink: 0;
         }
 
-        .nav-link {
+        .sidebar-collapse-btn:hover {
+          background: var(--accent-bg);
+          border-color: var(--accent-border);
+          color: var(--accent);
+        }
+
+        .sidebar.collapsed .sidebar-collapse-btn {
+          transform: rotate(180deg);
+        }
+
+        /* ===== Sidebar Navigation ===== */
+        .sidebar-nav {
+          flex: 1;
+          padding: var(--space-3) var(--space-3);
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          overflow-y: auto;
+        }
+
+        .sidebar-link {
           position: relative;
           display: flex;
           align-items: center;
-          gap: 6px;
-          padding: var(--space-2) var(--space-3);
-          border-radius: var(--radius-md);
-          font-weight: 600;
-          font-size: 0.875rem;
+          gap: var(--space-3);
+          padding: var(--space-3) var(--space-3);
+          border-radius: var(--radius-lg);
           color: var(--text-secondary);
           text-decoration: none;
+          font-weight: 600;
+          font-size: 0.9375rem;
           transition: all var(--transition-fast);
+          white-space: nowrap;
           overflow: hidden;
         }
 
-        .nav-link::before {
+        .sidebar-link::before {
           content: '';
           position: absolute;
           inset: 0;
           background: var(--accent-bg);
           border-radius: inherit;
           opacity: 0;
-          transform: scale(0.85);
+          transform: scale(0.9);
           transition: all var(--transition-fast);
         }
 
-        .nav-link:hover {
+        .sidebar-link:hover {
           color: var(--accent);
         }
 
-        .nav-link:hover::before {
+        .sidebar-link:hover::before {
           opacity: 1;
           transform: scale(1);
         }
 
-        .nav-link.active {
+        .sidebar-link.active {
           color: var(--accent);
-        }
-
-        .nav-link.active::before {
-          opacity: 1;
-          transform: scale(1);
-        }
-
-        .nav-link-icon {
-          position: relative;
-          z-index: 1;
-          font-size: 1rem;
-        }
-
-        .nav-link-text {
-          position: relative;
-          z-index: 1;
-        }
-
-        .nav-link-indicator {
-          position: absolute;
-          bottom: 2px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 16px;
-          height: 3px;
-          background: var(--accent-gradient);
-          border-radius: 2px;
-          z-index: 1;
-        }
-
-        .nav-cta-btn {
-          display: inline-flex;
-          align-items: center;
-          padding: var(--space-2) var(--space-5);
-          background: var(--accent-gradient);
-          color: white;
-          border-radius: var(--radius-lg);
-          font-weight: 700;
-          font-size: 0.875rem;
-          text-decoration: none;
-          margin-left: var(--space-2);
-          box-shadow: var(--shadow-accent);
-          transition: all var(--transition-fast);
-        }
-
-        .nav-cta-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 40px -10px rgba(37, 99, 235, 0.5);
-        }
-
-        /* ===== Notification Dropdown ===== */
-        .dropdown-root {
-          position: relative;
-          display: inline-flex;
-          align-items: center;
-        }
-
-        .notif-btn {
-          position: relative;
-          padding: var(--space-2) var(--space-3);
-          border-radius: var(--radius-md);
-          border: 1px solid var(--border);
-          background: var(--bg-secondary);
-          cursor: pointer;
-          transition: all var(--transition-fast);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .notif-btn:hover {
-          border-color: var(--accent-border);
           background: var(--accent-bg);
         }
 
-        .notif-icon {
-          font-size: 1.1rem;
+        .sidebar-link.active::before {
+          opacity: 1;
+          transform: scale(1);
         }
 
-        .notif-badge {
+        .sidebar-link-icon {
+          position: relative;
+          z-index: 1;
+          font-size: 1.25rem;
+          width: 24px;
+          text-align: center;
+          flex-shrink: 0;
+        }
+
+        .sidebar-link-text {
+          position: relative;
+          z-index: 1;
+          transition: opacity 0.2s ease;
+        }
+
+        .sidebar.collapsed .sidebar-link-text {
+          opacity: 0;
+          width: 0;
+        }
+
+        .sidebar-link-indicator {
           position: absolute;
-          top: -4px;
-          right: -4px;
+          left: 0;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 3px;
+          height: 20px;
+          background: var(--accent-gradient);
+          border-radius: 0 2px 2px 0;
+        }
+
+        /* ===== Sidebar Footer ===== */
+        .sidebar-footer {
+          padding: var(--space-3);
+          border-top: 1px solid var(--border-light);
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .sidebar-cta {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          padding: var(--space-3) var(--space-3);
+          background: var(--accent-gradient);
+          color: white;
+          border-radius: var(--radius-lg);
+          text-decoration: none;
+          font-weight: 700;
+          font-size: 0.9375rem;
+          box-shadow: var(--shadow-accent);
+          transition: all var(--transition-fast);
+          white-space: nowrap;
+        }
+
+        .sidebar-cta:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 12px 40px -10px rgba(37, 99, 235, 0.5);
+        }
+
+        .sidebar-user {
+          display: flex;
+          align-items: center;
+          gap: var(--space-3);
+          padding: var(--space-3);
+          margin-bottom: var(--space-2);
+          border-radius: var(--radius-lg);
+          background: var(--bg-secondary);
+          transition: all 0.3s ease;
+        }
+
+        .sidebar.collapsed .sidebar-user {
+          justify-content: center;
+        }
+
+        .sidebar-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: var(--accent-gradient);
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 0.875rem;
+          flex-shrink: 0;
+        }
+
+        .sidebar-user-info {
+          transition: opacity 0.2s ease;
+          overflow: hidden;
+        }
+
+        .sidebar.collapsed .sidebar-user-info {
+          opacity: 0;
+          width: 0;
+        }
+
+        .sidebar-user-name {
+          font-weight: 700;
+          font-size: 0.875rem;
+          color: var(--text-h);
+          margin: 0;
+          white-space: nowrap;
+        }
+
+        .sidebar-user-role {
+          font-size: 0.75rem;
+          color: var(--text-secondary);
+          text-transform: capitalize;
+          margin: 0;
+        }
+
+        .sidebar-logout {
+          cursor: pointer;
+          border: none;
+          background: transparent;
+          font: inherit;
+          width: 100%;
+        }
+
+        .sidebar-logout:hover {
+          color: var(--error);
+        }
+
+        .sidebar-logout:hover::before {
+          background: var(--error-bg);
+        }
+
+        /* ===== Sidebar Notifications ===== */
+        .sidebar-notif-root {
+          position: relative;
+          display: block;
+        }
+
+        .sidebar-notif-btn {
+          width: 100%;
+          cursor: pointer;
+          border: none;
+          background: transparent;
+          font: inherit;
+        }
+
+        .sidebar-notif-badge {
+          position: absolute;
+          right: var(--space-3);
+          top: 50%;
+          transform: translateY(-50%);
           min-width: 18px;
           height: 18px;
           padding: 0 5px;
@@ -718,18 +720,21 @@ export default function App() {
           justify-content: center;
           border: 2px solid var(--surface);
           animation: badgePulse 2s ease-in-out infinite;
+          z-index: 2;
         }
 
-        @keyframes badgePulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.1); }
+        .sidebar.collapsed .sidebar-notif-badge {
+          right: 4px;
+          top: 4px;
+          transform: none;
         }
 
         .notif-menu {
           position: absolute;
-          right: 0;
-          top: calc(100% + 12px);
-          width: min(380px, calc(100vw - 32px));
+          left: calc(100% + 12px);
+          bottom: 0;
+          width: 380px;
+          max-width: calc(100vw - 100px);
           border: 1px solid var(--border);
           background: var(--surface);
           border-radius: var(--radius-2xl);
@@ -738,17 +743,23 @@ export default function App() {
           z-index: 200;
         }
 
+        .sidebar.collapsed .notif-menu {
+          left: calc(var(--sidebar-collapsed) + 12px);
+          bottom: auto;
+          top: 0;
+        }
+
         .dropdown-menu {
           opacity: 0;
-          transform: translateY(-8px) scale(0.97);
-          transform-origin: top right;
+          transform: translateX(-8px) scale(0.97);
+          transform-origin: top left;
           pointer-events: none;
           transition: all var(--transition-fast);
         }
 
         .dropdown-menu.open {
           opacity: 1;
-          transform: translateY(0) scale(1);
+          transform: translateX(0) scale(1);
           pointer-events: auto;
         }
 
@@ -878,50 +889,49 @@ export default function App() {
           font-weight: 500;
         }
 
-        /* ===== Logout ===== */
-        .logout-btn {
-          appearance: none;
-          border: none;
-          cursor: pointer;
-          color: var(--text-secondary);
-          padding: var(--space-2) var(--space-3);
-          border-radius: var(--radius-md);
-          background: transparent;
-          font: inherit;
-          font-weight: 600;
-          font-size: 0.875rem;
-          transition: all var(--transition-fast);
-          position: relative;
-          overflow: hidden;
+        /* ===== Content Area ===== */
+        .content-area {
+          flex: 1;
+          margin-left: var(--sidebar-width);
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          transition: margin-left 0.3s ease;
         }
 
-        .logout-btn::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: var(--error-bg);
-          border-radius: inherit;
-          opacity: 0;
-          transform: scale(0.85);
-          transition: all var(--transition-fast);
+        .sidebar.collapsed ~ .content-area {
+          margin-left: var(--sidebar-collapsed);
         }
 
-        .logout-btn:hover {
-          color: var(--error);
+        /* ===== Content Header ===== */
+        .content-header {
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          height: var(--header-height);
+          display: flex;
+          align-items: center;
+          padding: 0 var(--space-6);
+          background: rgba(255, 255, 255, 0.85);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border-bottom: 1px solid var(--border-light);
+          gap: var(--space-4);
         }
 
-        .logout-btn:hover::before {
-          opacity: 1;
-          transform: scale(1);
+        .content-header-title {
+          font-weight: 800;
+          font-size: 1.125rem;
+          color: var(--text-h);
+          font-family: var(--font-heading);
         }
 
-        .logout-btn span {
-          position: relative;
-          z-index: 1;
+        .content-header-spacer {
+          flex: 1;
         }
 
-        /* ===== Mobile Toggle ===== */
-        .mobile-toggle {
+        /* ===== Mobile Menu Toggle ===== */
+        .mobile-menu-toggle {
           display: none;
           flex-direction: column;
           gap: 5px;
@@ -929,96 +939,24 @@ export default function App() {
           background: none;
           border: none;
           cursor: pointer;
-          z-index: 101;
         }
 
-        .mobile-toggle span {
+        .mobile-menu-toggle span {
           display: block;
           width: 24px;
           height: 2.5px;
           background: var(--text-h);
           border-radius: 2px;
           transition: all 0.3s ease;
-          transform-origin: center;
-        }
-
-        .mobile-toggle.open span:nth-child(1) {
-          transform: translateY(7.5px) rotate(45deg);
-        }
-
-        .mobile-toggle.open span:nth-child(2) {
-          opacity: 0;
-          transform: scaleX(0);
-        }
-
-        .mobile-toggle.open span:nth-child(3) {
-          transform: translateY(-7.5px) rotate(-45deg);
-        }
-
-        /* ===== Mobile Nav ===== */
-        .mobile-nav {
-          display: none;
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background: rgba(255, 255, 255, 0.98);
-          backdrop-filter: blur(20px);
-          border-bottom: 1px solid var(--border);
-          padding: var(--space-4);
-          flex-direction: column;
-          gap: var(--space-2);
-          box-shadow: var(--shadow-lg);
-          transform: translateY(-10px);
-          opacity: 0;
-          pointer-events: none;
-          transition: all 0.3s ease;
-        }
-
-        .mobile-nav.open {
-          transform: translateY(0);
-          opacity: 1;
-          pointer-events: auto;
-        }
-
-        .mobile-nav .nav-link {
-          padding: var(--space-3) var(--space-4);
-          font-size: 1rem;
-        }
-
-        .mobile-cta {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: var(--space-3) var(--space-4);
-          background: var(--accent-gradient);
-          color: white;
-          border-radius: var(--radius-lg);
-          font-weight: 700;
-          text-decoration: none;
-          margin-top: var(--space-2);
-        }
-
-        .mobile-logout {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: var(--space-3) var(--space-4);
-          border-radius: var(--radius-lg);
-          border: 1px solid var(--border);
-          background: var(--bg-secondary);
-          color: var(--error);
-          font-weight: 700;
-          font-size: 1rem;
-          cursor: pointer;
-          margin-top: var(--space-2);
         }
 
         /* ===== Main ===== */
         .app-main {
           flex: 1;
           padding: var(--space-8) var(--space-6);
+          max-width: 1200px;
           width: 100%;
+          margin: 0 auto;
         }
 
         /* ===== Footer ===== */
@@ -1094,31 +1032,40 @@ export default function App() {
 
         /* ===== Responsive ===== */
         @media (max-width: 1024px) {
-          .app-shell {
-            display: block;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
+          .sidebar {
+            transform: translateX(-100%);
+            box-shadow: var(--shadow-xl);
           }
 
-          .app-sidebar {
+          .sidebar.mobile-open {
+            transform: translateX(0);
+          }
+
+          .sidebar.collapsed {
+            width: var(--sidebar-width);
+          }
+
+          .sidebar.collapsed .sidebar-brand-text,
+          .sidebar.collapsed .sidebar-link-text,
+          .sidebar.collapsed .sidebar-user-info {
+            opacity: 1;
+            width: auto;
+          }
+
+          .sidebar-collapse-btn {
             display: none;
           }
 
-          .desktop-nav {
-            display: none;
+          .content-area {
+            margin-left: 0;
           }
 
-          .mobile-toggle {
+          .sidebar.collapsed ~ .content-area {
+            margin-left: 0;
+          }
+
+          .mobile-menu-toggle {
             display: flex;
-          }
-
-          .mobile-nav {
-            display: flex;
-          }
-
-          .header-inner {
-            padding: var(--space-3) var(--space-4);
           }
         }
 
@@ -1127,13 +1074,18 @@ export default function App() {
             padding: var(--space-5) var(--space-4);
           }
 
-          .brand-text {
-            display: none;
+          .content-header {
+            padding: 0 var(--space-4);
           }
 
           .footer-links {
             gap: var(--space-4);
             flex-wrap: wrap;
+          }
+
+          .notif-menu {
+            width: calc(100vw - 100px);
+            left: calc(100% + 8px) !important;
           }
         }
       `}</style>
