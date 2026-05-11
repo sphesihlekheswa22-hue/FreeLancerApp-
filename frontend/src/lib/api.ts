@@ -2,6 +2,9 @@ export type ApiError = { error: string }
 
 const TOKEN_KEY = 'campus_gigs_token'
 
+/** Dispatch on `window` after profile changes so the app shell can refetch `/api/me`. */
+export const PROFILE_REFRESH_EVENT = 'campus-gigs-profile-changed'
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -11,12 +14,21 @@ export function setToken(token: string | null) {
   else localStorage.setItem(TOKEN_KEY, token)
 }
 
-function apiUrl(path: string): string {
+export function apiUrl(path: string): string {
   const base = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined
   const baseClean = (base || '').trim().replace(/\/+$/, '')
   if (!baseClean) return path
   const pathClean = path.startsWith('/') ? path : `/${path}`
   return `${baseClean}${pathClean}`
+}
+
+/** Absolute URL for profile images and other API-served paths (handles VITE_API_BASE_URL). */
+export function resolveMediaUrl(url: string | null | undefined): string | undefined {
+  if (url == null) return undefined
+  const u = String(url).trim()
+  if (!u) return undefined
+  if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) return u
+  return apiUrl(u.startsWith('/') ? u : `/${u}`)
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -67,8 +79,58 @@ export async function login(payload: {
   return apiFetch('/api/login', { method: 'POST', body: JSON.stringify(payload) })
 }
 
-export async function me(): Promise<any> {
+export type MeResponse = {
+  id: number
+  name: string
+  email: string
+  role: string
+  profile?: {
+    bio?: string
+    skills?: string
+    rating?: number
+    completed_jobs?: number
+    profile_picture_url?: string | null
+  }
+}
+
+export async function me(): Promise<MeResponse> {
   return apiFetch('/api/me')
+}
+
+export async function uploadProfilePhoto(file: File): Promise<{ profile_picture_url: string }> {
+  const token = getToken()
+  const form = new FormData()
+  form.append('file', file)
+  const headers = new Headers()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const controller = new AbortController()
+  const timeoutMs = 60000
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  let res: Response
+  try {
+    res = await fetch(apiUrl('/api/profile/photo'), {
+      method: 'POST',
+      headers,
+      body: form,
+      signal: controller.signal,
+    })
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw new Error('Upload timed out. Try a smaller image.')
+    throw e
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  const json = (await res.json().catch(() => ({}))) as unknown
+  if (!res.ok) {
+    const msg =
+      typeof json === 'object' && json && 'error' in json
+        ? String((json as any).error)
+        : `Upload failed (${res.status})`
+    throw new Error(msg)
+  }
+  return json as { profile_picture_url: string }
 }
 
 export type Profile = {

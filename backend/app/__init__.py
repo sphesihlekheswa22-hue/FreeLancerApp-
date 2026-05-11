@@ -25,6 +25,7 @@ def create_app() -> Flask:
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret-change-me")
+    app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
 
     CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=False)
 

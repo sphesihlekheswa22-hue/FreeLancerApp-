@@ -1,5 +1,12 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { getProfile, Profile, updateProfile } from '../lib/api'
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
+import {
+  getProfile,
+  PROFILE_REFRESH_EVENT,
+  Profile,
+  resolveMediaUrl,
+  updateProfile,
+  uploadProfilePhoto,
+} from '../lib/api'
 
 function parseSkills(skills: string): string[] {
   return skills
@@ -19,8 +26,14 @@ export default function ProfilePage({ isAuthed }: { isAuthed: boolean }) {
   const [portfolioUrl, setPortfolioUrl] = useState('')
   const [hourlyRate, setHourlyRate] = useState<string>('')
   const [pricingType, setPricingType] = useState<'fixed' | 'hourly'>('fixed')
+  const [photoUploading, setPhotoUploading] = useState(false)
+  /** When true, next Save sends `profile_picture_url: null`. */
+  const [removePhotoOnSave, setRemovePhotoOnSave] = useState(false)
 
   const skillChips = useMemo(() => parseSkills(skills), [skills])
+  const photoSrc = removePhotoOnSave
+    ? undefined
+    : resolveMediaUrl(profile?.profile_picture_url)
 
   async function refresh() {
     if (!isAuthed) return
@@ -30,6 +43,7 @@ export default function ProfilePage({ isAuthed }: { isAuthed: boolean }) {
       const res = await getProfile()
       setUser(res.user)
       setProfile(res.profile)
+      setRemovePhotoOnSave(false)
       setBio(res.profile.bio ?? '')
       setSkills(res.profile.skills ?? '')
       setPortfolioUrl(res.profile.portfolio_url ?? '')
@@ -64,10 +78,33 @@ export default function ProfilePage({ isAuthed }: { isAuthed: boolean }) {
         portfolio_url: portfolioUrl.trim() || null,
         hourly_rate: parsedRate as number | null,
         pricing_type: pricingType,
+        ...(removePhotoOnSave ? { profile_picture_url: null } : {}),
       })
       setProfile(res)
+      if (removePhotoOnSave) {
+        setRemovePhotoOnSave(false)
+        window.dispatchEvent(new Event(PROFILE_REFRESH_EVENT))
+      }
     } catch (err: any) {
       setError(err?.message ?? 'Failed to save profile')
+    }
+  }
+
+  async function onPhotoPick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setPhotoUploading(true)
+    setError(null)
+    try {
+      const { profile_picture_url } = await uploadProfilePhoto(file)
+      setRemovePhotoOnSave(false)
+      setProfile((p) => (p ? { ...p, profile_picture_url } : p))
+      window.dispatchEvent(new Event(PROFILE_REFRESH_EVENT))
+    } catch (err: any) {
+      setError(err?.message ?? 'Photo upload failed')
+    } finally {
+      setPhotoUploading(false)
     }
   }
 
@@ -102,6 +139,72 @@ export default function ProfilePage({ isAuthed }: { isAuthed: boolean }) {
               </div>
             </div>
             <div className="pill strong">{user?.role ?? 'student'}</div>
+          </div>
+
+          <div
+            className="profile-photo-row"
+            style={{ marginTop: 20, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}
+          >
+            <div
+              className="profile-photo-preview"
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: 28,
+                flexShrink: 0,
+              }}
+            >
+              {photoSrc ? (
+                <img src={photoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                (user?.name?.charAt(0) ?? '?').toUpperCase()
+              )}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Profile photo</div>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 10px' }}>
+                JPG, PNG, GIF, or WebP, up to 3MB. Shown in the header when set.
+              </p>
+              {removePhotoOnSave ? (
+                <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+                  Photo will be removed when you click <strong>Save</strong> on your profile form.
+                </p>
+              ) : null}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <label className="btn-secondary" style={{ cursor: photoUploading ? 'wait' : 'pointer' }}>
+                  {photoUploading ? 'Uploading…' : 'Upload photo'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    style={{ display: 'none' }}
+                    disabled={photoUploading}
+                    onChange={onPhotoPick}
+                  />
+                </label>
+                {profile?.profile_picture_url && !removePhotoOnSave ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setRemovePhotoOnSave(true)}
+                  >
+                    Remove photo
+                  </button>
+                ) : null}
+                {removePhotoOnSave ? (
+                  <button type="button" className="btn-secondary" onClick={() => setRemovePhotoOnSave(false)}>
+                    Keep photo
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           <div className="statsRow" style={{ marginTop: 16 }}>

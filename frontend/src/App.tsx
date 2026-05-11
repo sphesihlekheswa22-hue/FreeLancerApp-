@@ -6,7 +6,10 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   me,
+  PROFILE_REFRESH_EVENT,
+  resolveMediaUrl,
   setToken,
+  type MeResponse,
   type NotificationItem,
 } from './lib/api'
 import { useDropdown } from './lib/useDropdown'
@@ -147,7 +150,7 @@ type NavItem = {
 export default function App() {
   const [isReady, setIsReady] = useState(false)
   const [isAuthed, setIsAuthed] = useState(Boolean(getToken()))
-  const [currentUser, setCurrentUser] = useState<{ id: number; name: string; email: string; role: string } | null>(null)
+  const [currentUser, setCurrentUser] = useState<MeResponse | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
@@ -193,7 +196,24 @@ export default function App() {
     }
   }, [mobileSidebarOpen])
 
+  useEffect(() => {
+    async function refreshMe() {
+      if (!getToken()) return
+      try {
+        setCurrentUser(await me())
+      } catch {
+        /* ignore */
+      }
+    }
+    function onProfileRefresh() {
+      void refreshMe()
+    }
+    window.addEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh)
+    return () => window.removeEventListener(PROFILE_REFRESH_EVENT, onProfileRefresh)
+  }, [])
+
   const unreadCount = notifications.filter((n) => !n.is_read).length
+  const avatarSrc = currentUser ? resolveMediaUrl(currentUser.profile?.profile_picture_url) : undefined
 
   const publicNav: NavItem[] = [
     { to: '/gigs', label: 'Explore Gigs', icon: Icons.gigs },
@@ -350,8 +370,8 @@ export default function App() {
 
               {/* User Card */}
               <div className="user-card">
-                <div className="user-avatar">
-                  {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
+                <div className={`user-avatar${avatarSrc ? ' user-avatar--photo' : ''}`}>
+                  {avatarSrc ? <img src={avatarSrc} alt="" /> : currentUser?.name?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div className="user-meta">
                   <p className="user-name">{currentUser?.name}</p>
@@ -412,7 +432,9 @@ export default function App() {
             {isAuthed && currentUser && (
               <div className="topbar-user">
                 <span className="topbar-greeting">Hello, {currentUser.name.split(' ')[0]}</span>
-                <div className="topbar-avatar-sm">{currentUser.name.charAt(0).toUpperCase()}</div>
+                <div className={`topbar-avatar-sm${avatarSrc ? ' topbar-avatar-sm--photo' : ''}`}>
+                  {avatarSrc ? <img src={avatarSrc} alt="" /> : currentUser.name.charAt(0).toUpperCase()}
+                </div>
               </div>
             )}
           </div>
@@ -799,6 +821,16 @@ export default function App() {
           flex-shrink: 0;
           box-shadow: 0 2px 8px rgba(99,102,241,0.3);
         }
+        .user-avatar--photo {
+          padding: 0;
+          line-height: 0;
+        }
+        .user-avatar--photo img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
         .user-meta {
           min-width: 0;
           transition: opacity var(--transition-fast);
@@ -1131,6 +1163,16 @@ export default function App() {
           font-weight: 700;
           font-size: 0.875rem;
           box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+        }
+        .topbar-avatar-sm--photo {
+          padding: 0;
+          line-height: 0;
+        }
+        .topbar-avatar-sm--photo img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
 
         /* ── Main Stage ── */
