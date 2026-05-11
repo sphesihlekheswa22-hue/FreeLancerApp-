@@ -468,15 +468,15 @@ export default function App() {
           --sidebar-collapsed-w: 76px;
           --topbar-h: 72px;
           
-          /* Dark sidebar palette */
-          --sidebar-bg: #0f1117;
-          --sidebar-bg-elevated: #161922;
-          --sidebar-border: rgba(255,255,255,0.06);
-          --sidebar-text: #8b92a8;
-          --sidebar-text-hover: #c4c9d8;
-          --sidebar-text-active: #ffffff;
+          /* Light sidebar palette (white) */
+          --sidebar-bg: #ffffff;
+          --sidebar-bg-elevated: #ffffff;
+          --sidebar-border: var(--border);
+          --sidebar-text: var(--text-secondary);
+          --sidebar-text-hover: var(--text-primary);
+          --sidebar-text-active: var(--text-primary);
           --sidebar-item-bg: transparent;
-          --sidebar-item-hover: rgba(255,255,255,0.04);
+          --sidebar-item-hover: rgba(99,102,241,0.08);
           --sidebar-item-active: rgba(99,102,241,0.12);
           
           /* Accent */
@@ -529,11 +529,11 @@ export default function App() {
           align-items: center;
           justify-content: center;
           gap: 20px;
-          background: var(--sidebar-bg);
+          background: var(--content-bg);
           z-index: 9999;
         }
         .app-loader p {
-          color: var(--sidebar-text);
+          color: var(--text-secondary);
           font-size: 0.9375rem;
           font-weight: 500;
           letter-spacing: 0.02em;
@@ -568,7 +568,7 @@ export default function App() {
         .mobile-backdrop {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.6);
+          background: rgba(15, 23, 42, 0.28);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
           z-index: 90;
