@@ -885,6 +885,10 @@ button[disabled]::before, .btn[disabled]::before {
   align-self: flex-start;
 }
 
+.bubble.pending {
+  opacity: 0.88;
+}
+
 /* Landing */
 .landing {
   padding: 28px 0 44px;

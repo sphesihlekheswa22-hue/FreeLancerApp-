@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 
 from .. import db
 from ..models import Application, Job, Message, User
@@ -28,6 +28,23 @@ def _pair_allowed_for_messaging(user_a: int, user_b: int) -> bool:
         .limit(1)
     )
     return db.session.execute(stmt).scalar_one_or_none() is not None
+
+
+def _unread_from_other(*, me: int, other: int) -> int:
+    """Messages the other user sent after my last outbound message to them (simple unread proxy)."""
+    last_out = db.session.execute(
+        db.select(Message.timestamp)
+        .where(Message.sender_id == me, Message.receiver_id == other)
+        .order_by(Message.timestamp.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    q = db.select(func.count(Message.id)).where(
+        Message.sender_id == other,
+        Message.receiver_id == me,
+    )
+    if last_out is not None:
+        q = q.where(Message.timestamp > last_out)
+    return int(db.session.execute(q).scalar_one() or 0)
 
 
 @messages_bp.post("/messages")
@@ -134,6 +151,7 @@ def inbox():
         out.append(
             {
                 "with_user_id": other,
+                "unread_count": _unread_from_other(me=user_id, other=other),
                 "last_message": {
                     "id": m.id,
                     "sender_id": m.sender_id,

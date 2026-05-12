@@ -367,6 +367,8 @@ export async function getThread(with_user_id: number): Promise<Message[]> {
 export type InboxItem = {
   with_user_id: number
   last_message: Message
+  /** Approximate unread: incoming messages since your last reply to this contact (server-computed). */
+  unread_count?: number
 }
 
 export async function getInbox(): Promise<InboxItem[]> {
