@@ -1,4 +1,4 @@
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   getToken,
@@ -29,6 +29,7 @@ import UserProfilePage from './pages/UserProfilePage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import TopFreelancersPage from './pages/TopFreelancersPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
+import NotificationsPage from './pages/NotificationsPage'
 
 /* ─── SVG Icons (inline for zero dependencies) ─────────────────── */
 const Icons = {
@@ -156,6 +157,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const notif = useDropdown()
   const location = useLocation()
+  const navigate = useNavigate()
   const sidebarRef = useRef<HTMLDivElement>(null)
 
   const refreshNotifications = useCallback(async () => {
@@ -241,7 +243,10 @@ export default function App() {
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
-  const pageTitle = activeNav.find(n => isActive(n.to))?.label || 'Campus Gigs'
+  const pageTitle =
+    location.pathname === '/notifications'
+      ? 'Notifications'
+      : activeNav.find((n) => isActive(n.to))?.label || 'Campus Gigs'
 
   if (!isReady) {
     return (
@@ -321,12 +326,28 @@ export default function App() {
 
                 <div className={`notif-panel ${notif.open ? 'open' : ''}`} {...notif.menuProps} tabIndex={-1}>
                   <div className="notif-panel-header">
-                    <h4>Notifications</h4>
+                    <div>
+                      <h4>Notifications</h4>
+                      <Link
+                        to="/notifications"
+                        className="notif-see-all"
+                        onClick={() => {
+                          notif.close()
+                          setMobileSidebarOpen(false)
+                        }}
+                      >
+                        See all
+                      </Link>
+                    </div>
                     {unreadCount > 0 && (
-                      <button className="mark-all" onClick={async () => {
-                        await markAllNotificationsRead()
-                        await refreshNotifications()
-                      }}>
+                      <button
+                        type="button"
+                        className="mark-all"
+                        onClick={async () => {
+                          await markAllNotificationsRead()
+                          await refreshNotifications()
+                        }}
+                      >
                         Mark all read
                       </button>
                     )}
@@ -340,19 +361,49 @@ export default function App() {
                       </div>
                     ) : (
                       notifications.slice(0, 10).map((n) => (
-                        <div key={n.id} className={`notif-row ${n.is_read ? '' : 'unread'}`}>
+                        <div
+                          key={n.id}
+                          className={`notif-row ${n.is_read ? '' : 'unread'} ${n.link ? 'notif-row--clickable' : ''}`}
+                          role={n.link ? 'button' : undefined}
+                          tabIndex={n.link ? 0 : undefined}
+                          onClick={() => {
+                            if (!n.link) return
+                            notif.close()
+                            setMobileSidebarOpen(false)
+                            navigate(n.link)
+                            if (!n.is_read) {
+                              void markNotificationRead(n.id)
+                                .then(() => refreshNotifications())
+                                .catch(() => refreshNotifications())
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (!n.link) return
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              notif.close()
+                              setMobileSidebarOpen(false)
+                              navigate(n.link)
+                              if (!n.is_read) {
+                                void markNotificationRead(n.id)
+                                  .then(() => refreshNotifications())
+                                  .catch(() => refreshNotifications())
+                              }
+                            }
+                          }}
+                        >
                           <div className="notif-row-content">
                             <p>{n.message}</p>
-                            {n.link && (
-                              <Link to={n.link} onClick={() => notif.close()} className="notif-row-link">
-                                View details
-                              </Link>
-                            )}
+                            {n.link ? (
+                              <span className="notif-row-hint">Open linked page</span>
+                            ) : null}
                           </div>
                           {!n.is_read && (
                             <button
+                              type="button"
                               className="notif-row-check"
-                              onClick={async () => {
+                              onClick={async (e) => {
+                                e.stopPropagation()
                                 await markNotificationRead(n.id)
                                 await refreshNotifications()
                               }}
@@ -456,6 +507,14 @@ export default function App() {
             <Route path="/top-freelancers" element={<RequireAuth isAuthed={isAuthed}><TopFreelancersPage /></RequireAuth>} />
             <Route path="/admin" element={<RequireAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}><AdminDashboardPage /></RequireAdmin>} />
             <Route path="/messages" element={<RequireAuth isAuthed={isAuthed}><MessagesPage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route
+              path="/notifications"
+              element={
+                <RequireAuth isAuthed={isAuthed}>
+                  <NotificationsPage isAuthed={isAuthed} />
+                </RequireAuth>
+              }
+            />
             <Route path="/profile" element={<RequireAuth isAuthed={isAuthed}><ProfilePage isAuthed={isAuthed} /></RequireAuth>} />
             <Route path="/users/:userId" element={<UserProfilePage />} />
             <Route path="*" element={<NotFoundPage />} />
@@ -613,7 +672,8 @@ export default function App() {
           flex-direction: column;
           z-index: 100;
           transition: width var(--transition-slow), transform var(--transition-slow);
-          overflow: hidden;
+          /* Allow notification dropdown to extend past the sidebar edge (overflow:hidden clips it). */
+          overflow: visible;
           box-shadow: var(--shadow-sidebar);
         }
 
@@ -675,6 +735,7 @@ export default function App() {
         /* ── Navigation ── */
         .sidebar-nav {
           flex: 1;
+          min-height: 0;
           padding: 8px 14px;
           display: flex;
           flex-direction: column;
@@ -919,6 +980,17 @@ export default function App() {
           font-weight: 700;
           color: var(--text-primary);
         }
+        .notif-see-all {
+          display: inline-block;
+          margin-top: 4px;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--accent);
+          text-decoration: none;
+        }
+        .notif-see-all:hover {
+          text-decoration: underline;
+        }
         .mark-all {
           padding: 6px 12px;
           border-radius: var(--radius-sm);
@@ -950,6 +1022,13 @@ export default function App() {
           transition: background var(--transition-fast);
         }
         .notif-row:hover { background: var(--content-bg); }
+        .notif-row--clickable {
+          cursor: pointer;
+        }
+        .notif-row--clickable:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: -2px;
+        }
         .notif-row.unread {
           background: linear-gradient(90deg, rgba(99,102,241,0.04), transparent);
           border-left: 3px solid var(--accent);
@@ -966,13 +1045,11 @@ export default function App() {
           font-weight: 500;
           line-height: 1.5;
         }
-        .notif-row-link {
+        .notif-row-hint {
           font-size: 0.8125rem;
           color: var(--accent);
           font-weight: 600;
-          text-decoration: none;
         }
-        .notif-row-link:hover { text-decoration: underline; }
         .notif-row-check {
           width: 26px;
           height: 26px;

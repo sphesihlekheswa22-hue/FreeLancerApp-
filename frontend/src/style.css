@@ -2136,6 +2136,32 @@ button[disabled]::before, .btn[disabled]::before {
   outline-offset: 2px;
 }
 
+/* Notifications full page */
+.notif-page-list {
+  padding: 0;
+  overflow: hidden;
+}
+.notif-page-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-light);
+}
+.notif-page-row:last-child {
+  border-bottom: none;
+}
+.notif-page-row--clickable {
+  cursor: pointer;
+}
+.notif-page-row--clickable:hover {
+  background: var(--content-bg);
+}
+.notif-page-row.unread {
+  border-left: 3px solid var(--accent);
+  padding-left: 15px;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
