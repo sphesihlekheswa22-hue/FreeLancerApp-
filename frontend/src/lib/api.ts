@@ -373,6 +373,16 @@ export async function getInbox(): Promise<InboxItem[]> {
   return apiFetch('/api/inbox')
 }
 
+export type MessagingPartner = {
+  user: { id: number; name: string }
+  jobs: { application_id: number; job_id: number; job_title: string }[]
+}
+
+/** Accepted proposal pairs — you can only message these users (see backend). */
+export async function listMessagingPartners(): Promise<MessagingPartner[]> {
+  return apiFetch('/api/messaging/partners')
+}
+
 export type Review = {
   id: number
   reviewer_id: number

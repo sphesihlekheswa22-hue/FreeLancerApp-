@@ -159,7 +159,7 @@ export default function ApplicationsPage({ isAuthed }: { isAuthed: boolean }) {
                   <span className="pill">{a.estimated_time}</span>
                 </div>
 
-                <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10 }}>
+                <div className="row" style={{ justifyContent: 'flex-end', marginTop: 10, flexWrap: 'wrap', gap: 8 }}>
                   <button type="button" disabled={loading || busyId === a.id} onClick={() => changeStatus(a.id, 'shortlisted')}>
                     {busyId === a.id ? 'Saving…' : 'Shortlist'}
                   </button>
@@ -172,6 +172,11 @@ export default function ApplicationsPage({ isAuthed }: { isAuthed: boolean }) {
                   <button type="button" disabled={loading || busyId === a.id} onClick={() => changeStatus(a.id, 'completed')}>
                     {busyId === a.id ? 'Saving…' : 'Complete'}
                   </button>
+                  {a.status === 'accepted' && a.freelancer?.id ? (
+                    <Link className="pill strong" to={`/messages?with=${a.freelancer.id}`}>
+                      Message about project
+                    </Link>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -263,6 +268,16 @@ export default function ApplicationsPage({ isAuthed }: { isAuthed: boolean }) {
                     <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>
                       Submitted: {new Date(a.created_at).toLocaleString()}
                     </div>
+                    {a.status === 'accepted' && (a.client?.id ?? a.job?.user_id) ? (
+                      <div style={{ marginTop: 12 }}>
+                        <Link
+                          className="pill strong"
+                          to={`/messages?with=${a.client?.id ?? a.job?.user_id}`}
+                        >
+                          Message client about project
+                        </Link>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

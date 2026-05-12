@@ -1,12 +1,33 @@
+from collections import defaultdict
+
 from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from .. import db
-from ..models import Message
+from ..models import Application, Job, Message, User
 from ..notify import notify
 
 messages_bp = Blueprint("messages", __name__)
+
+
+def _pair_allowed_for_messaging(user_a: int, user_b: int) -> bool:
+    """Messaging is only for job owner ↔ freelancer pairs with an accepted proposal."""
+    if user_a == user_b:
+        return False
+    stmt = (
+        db.select(Application.id)
+        .join(Job, Job.id == Application.job_id)
+        .where(
+            Application.status == "accepted",
+            or_(
+                and_(Job.user_id == user_a, Application.freelancer_id == user_b),
+                and_(Job.user_id == user_b, Application.freelancer_id == user_a),
+            ),
+        )
+        .limit(1)
+    )
+    return db.session.execute(stmt).scalar_one_or_none() is not None
 
 
 @messages_bp.post("/messages")
@@ -20,14 +41,20 @@ def send_message():
     if receiver_id is None or not message_text:
         return {"error": "receiver_id and message_text required"}, 400
 
+    rid = int(receiver_id)
+    if not _pair_allowed_for_messaging(sender_id, rid):
+        return {
+            "error": "Messaging is only available after your proposal is accepted for this project.",
+        }, 403
+
     msg = Message(
         sender_id=sender_id,
-        receiver_id=int(receiver_id),
+        receiver_id=rid,
         message_text=message_text,
     )
     db.session.add(msg)
     notify(
-        user_id=int(receiver_id),
+        user_id=rid,
         type="message",
         message="New message received.",
         link=f"/messages",
@@ -54,6 +81,9 @@ def get_thread():
     if not with_user_id:
         return {"error": "with_user_id required"}, 400
     other_id = int(with_user_id)
+
+    if not _pair_allowed_for_messaging(user_id, other_id):
+        return {"error": "Messaging is only available after a proposal is accepted for this project."}, 403
 
     stmt = (
         db.select(Message)
@@ -98,6 +128,8 @@ def inbox():
         other = m.receiver_id if m.sender_id == user_id else m.sender_id
         if other in seen:
             continue
+        if not _pair_allowed_for_messaging(user_id, other):
+            continue
         seen.add(other)
         out.append(
             {
@@ -112,5 +144,53 @@ def inbox():
             }
         )
 
+    return out
+
+
+@messages_bp.get("/messaging/partners")
+@jwt_required()
+def messaging_partners():
+    """
+    Users you may message: accepted proposal pairs (job owner ↔ freelancer).
+    Used to start new threads before any message exists.
+    """
+    user_id = int(get_jwt_identity())
+
+    stmt = (
+        db.select(Application, Job)
+        .join(Job, Job.id == Application.job_id)
+        .where(Application.status == "accepted")
+        .where(or_(Job.user_id == user_id, Application.freelancer_id == user_id))
+    )
+    rows = db.session.execute(stmt).all()
+
+    by_other: dict[int, list[dict]] = defaultdict(list)
+    other_ids: set[int] = set()
+    for app, job in rows:
+        other_id = job.user_id if app.freelancer_id == user_id else app.freelancer_id
+        other_ids.add(other_id)
+        by_other[other_id].append(
+            {
+                "application_id": app.id,
+                "job_id": job.id,
+                "job_title": job.title,
+            }
+        )
+
+    if not other_ids:
+        return []
+
+    users = db.session.execute(db.select(User).where(User.id.in_(other_ids))).scalars().all()
+    by_uid = {u.id: u for u in users}
+
+    out = []
+    for oid in sorted(other_ids):
+        u = by_uid.get(oid)
+        out.append(
+            {
+                "user": {"id": oid, "name": u.name if u else f"User #{oid}"},
+                "jobs": by_other[oid],
+            }
+        )
     return out
 
