@@ -2,6 +2,7 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from .. import db
+from ..authz import non_admin_required
 from ..models import Application, Job, Profile, User
 from ..notify import notify
 
@@ -9,7 +10,7 @@ applications_bp = Blueprint("applications", __name__)
 
 
 @applications_bp.post("/apply")
-@jwt_required()
+@non_admin_required
 def apply_to_job():
     freelancer_id = int(get_jwt_identity())
     data = request.get_json(silent=True) or {}

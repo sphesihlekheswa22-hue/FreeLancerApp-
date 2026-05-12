@@ -2,6 +2,7 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from .. import db
+from ..authz import non_admin_required
 from ..models import Gig
 
 gigs_bp = Blueprint("gigs", __name__)
@@ -50,7 +51,7 @@ def list_gigs():
 
 
 @gigs_bp.post("/gigs")
-@jwt_required()
+@non_admin_required
 def create_gig():
     user_id = int(get_jwt_identity())
     data = request.get_json(silent=True) or {}

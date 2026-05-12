@@ -140,6 +140,12 @@ function RequireAdmin({ isAuthed, role, children }: { isAuthed: boolean; role: s
   return <>{children}</>
 }
 
+function RequireNonAdmin({ isAuthed, role, children }: { isAuthed: boolean; role: string | null; children: React.ReactNode }) {
+  if (!isAuthed) return <Navigate to="/login" replace />
+  if (role === 'admin') return <Navigate to="/admin" replace />
+  return <>{children}</>
+}
+
 type NavItem = {
   to: string
   label: string
@@ -236,7 +242,11 @@ export default function App() {
     ? [{ to: '/admin', label: 'Admin', icon: Icons.admin, admin: true }]
     : []
 
-  const activeNav = isAuthed ? [...authedNav, ...adminNav] : publicNav
+  const activeNav = isAuthed
+    ? currentUser?.role === 'admin'
+      ? [...adminNav]
+      : [...authedNav, ...adminNav]
+    : publicNav
 
   const isActive = (path: string) => {
     if (path === '/dashboard') return location.pathname === '/dashboard'
@@ -246,7 +256,9 @@ export default function App() {
   const pageTitle =
     location.pathname === '/notifications'
       ? 'Notifications'
-      : activeNav.find((n) => isActive(n.to))?.label || 'Campus Gigs'
+      : location.pathname === '/admin'
+        ? 'Admin'
+        : activeNav.find((n) => isActive(n.to))?.label || 'Campus Gigs'
 
   if (!isReady) {
     return (
@@ -494,19 +506,77 @@ export default function App() {
         {/* Main */}
         <main className="main-stage">
           <Routes>
-            <Route path="/" element={isAuthed ? <Navigate to="/dashboard" replace /> : <LandingPage />} />
-            <Route path="/dashboard" element={<RequireAuth isAuthed={isAuthed}><DashboardPage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route
+              path="/"
+              element={
+                isAuthed
+                  ? currentUser?.role === 'admin'
+                    ? <Navigate to="/admin" replace />
+                    : <Navigate to="/dashboard" replace />
+                  : <LandingPage />
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <DashboardPage isAuthed={isAuthed} />
+                </RequireNonAdmin>
+              }
+            />
             <Route path="/login" element={<LoginPage onAuthed={async () => { setIsAuthed(true); try { setCurrentUser(await me()) } catch {} }} />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/register" element={<RegisterPage onAuthed={async () => { setIsAuthed(true); try { setCurrentUser(await me()) } catch {} }} />} />
-            <Route path="/gigs" element={<GigsPage isAuthed={isAuthed} />} />
+            <Route
+              path="/gigs"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <GigsPage isAuthed={isAuthed} />
+                </RequireNonAdmin>
+              }
+            />
             <Route path="/gigs/:gigId" element={<GigDetailPage />} />
-            <Route path="/jobs" element={<JobsPage isAuthed={isAuthed} />} />
-            <Route path="/jobs/:jobId" element={<JobDetailPage isAuthed={isAuthed} />} />
-            <Route path="/applications" element={<RequireAuth isAuthed={isAuthed}><ApplicationsPage isAuthed={isAuthed} /></RequireAuth>} />
-            <Route path="/top-freelancers" element={<RequireAuth isAuthed={isAuthed}><TopFreelancersPage /></RequireAuth>} />
+            <Route
+              path="/jobs"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <JobsPage isAuthed={isAuthed} />
+                </RequireNonAdmin>
+              }
+            />
+            <Route
+              path="/jobs/:jobId"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <JobDetailPage isAuthed={isAuthed} />
+                </RequireNonAdmin>
+              }
+            />
+            <Route
+              path="/applications"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <ApplicationsPage isAuthed={isAuthed} />
+                </RequireNonAdmin>
+              }
+            />
+            <Route
+              path="/top-freelancers"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <TopFreelancersPage />
+                </RequireNonAdmin>
+              }
+            />
             <Route path="/admin" element={<RequireAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}><AdminDashboardPage /></RequireAdmin>} />
-            <Route path="/messages" element={<RequireAuth isAuthed={isAuthed}><MessagesPage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route
+              path="/messages"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <MessagesPage isAuthed={isAuthed} />
+                </RequireNonAdmin>
+              }
+            />
             <Route
               path="/notifications"
               element={
@@ -515,7 +585,14 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route path="/profile" element={<RequireAuth isAuthed={isAuthed}><ProfilePage isAuthed={isAuthed} /></RequireAuth>} />
+            <Route
+              path="/profile"
+              element={
+                <RequireNonAdmin isAuthed={isAuthed} role={currentUser?.role ?? null}>
+                  <ProfilePage isAuthed={isAuthed} />
+                </RequireNonAdmin>
+              }
+            />
             <Route path="/users/:userId" element={<UserProfilePage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

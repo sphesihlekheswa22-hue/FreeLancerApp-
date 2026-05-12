@@ -5,6 +5,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import and_, func, or_
 
 from .. import db
+from ..authz import non_admin_required
 from ..models import Application, Job, Message, User
 from ..notify import notify
 
@@ -48,7 +49,7 @@ def _unread_from_other(*, me: int, other: int) -> int:
 
 
 @messages_bp.post("/messages")
-@jwt_required()
+@non_admin_required
 def send_message():
     sender_id = int(get_jwt_identity())
     data = request.get_json(silent=True) or {}

@@ -2,6 +2,7 @@ from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 
 from .. import db
+from ..authz import non_admin_required
 from ..models import Job, JobUpdate, User
 from ..notify import notify
 
@@ -74,7 +75,7 @@ def list_jobs():
 
 
 @jobs_bp.post("/jobs")
-@jwt_required()
+@non_admin_required
 def create_job():
     user_id = int(get_jwt_identity())
     data = request.get_json(silent=True) or {}
