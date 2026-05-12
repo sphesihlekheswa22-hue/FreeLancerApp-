@@ -292,7 +292,7 @@ export default function App() {
             <Link
               key={item.to}
               to={item.to}
-              className={`nav-item ${isActive(item.to) ? 'active' : ''}`}
+              className={`nav-item ${item.admin ? 'admin' : ''} ${isActive(item.to) ? 'active' : ''}`}
               title={sidebarCollapsed ? item.label : undefined}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -790,6 +790,17 @@ export default function App() {
         }
         .nav-item.active::before {
           opacity: 0;
+        }
+        .nav-item.admin {
+          border: 1px dashed rgba(245,158,11,0.55);
+        }
+        .nav-item.admin:hover {
+          color: var(--sidebar-text-hover);
+          border-color: rgba(245,158,11,0.9);
+        }
+        .nav-item.admin.active {
+          border: 1px solid rgba(245,158,11,0.85);
+          box-shadow: 0 0 18px rgba(245,158,11,0.18);
         }
 
         .nav-icon {

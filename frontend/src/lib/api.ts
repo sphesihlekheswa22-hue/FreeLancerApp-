@@ -441,6 +441,99 @@ export async function adminStats(): Promise<any> {
   return apiFetch('/api/admin/stats')
 }
 
+export async function adminListUsers(params?: { q?: string }): Promise<AdminUserRow[]> {
+  const url = new URL('/api/admin/users', window.location.origin)
+  if (params?.q) url.searchParams.set('q', params.q)
+  return apiFetch(url.pathname + url.search)
+}
+
+export async function adminCreateUser(payload: {
+  name: string
+  email: string
+  password: string
+  role: 'student' | 'admin'
+}): Promise<AdminUserRow> {
+  return apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function adminUpdateUser(
+  user_id: number,
+  payload: Partial<{ name: string; email: string; password: string; role: 'student' | 'admin' }>,
+): Promise<AdminUserRow> {
+  return apiFetch(`/api/admin/users/${user_id}`, { method: 'PUT', body: JSON.stringify(payload) })
+}
+
+export async function adminDeleteUser(user_id: number): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/admin/users/${user_id}`, { method: 'DELETE' })
+}
+
+export type AdminJobRow = {
+  id: number
+  title: string
+  category: string
+  budget: number
+  deadline: string | null
+  status: string
+  user_id: number
+  created_at: string
+}
+
+export async function adminListJobs(params?: { q?: string }): Promise<AdminJobRow[]> {
+  const url = new URL('/api/admin/jobs', window.location.origin)
+  if (params?.q) url.searchParams.set('q', params.q)
+  return apiFetch(url.pathname + url.search)
+}
+
+export async function adminUpdateJob(
+  job_id: number,
+  payload: Partial<{ title: string; description: string; category: string; budget: number; deadline: string | null; status: string }>,
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/admin/jobs/${job_id}`, { method: 'PUT', body: JSON.stringify(payload) })
+}
+
+export type AdminGigRow = {
+  id: number
+  title: string
+  category: string
+  price: number
+  user_id: number
+  created_at: string
+}
+
+export async function adminListGigs(params?: { q?: string }): Promise<AdminGigRow[]> {
+  const url = new URL('/api/admin/gigs', window.location.origin)
+  if (params?.q) url.searchParams.set('q', params.q)
+  return apiFetch(url.pathname + url.search)
+}
+
+export async function adminUpdateGig(
+  gig_id: number,
+  payload: Partial<{ title: string; description: string; category: string; price: number }>,
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/admin/gigs/${gig_id}`, { method: 'PUT', body: JSON.stringify(payload) })
+}
+
+export type AdminApplicationRow = {
+  id: number
+  job_id: number
+  freelancer_id: number
+  status: string
+  expected_price: number
+  estimated_time: string
+  created_at: string
+}
+
+export async function adminListApplications(): Promise<AdminApplicationRow[]> {
+  return apiFetch('/api/admin/applications')
+}
+
+export async function adminUpdateApplication(
+  application_id: number,
+  payload: Partial<{ status: string }>,
+): Promise<{ ok: boolean }> {
+  return apiFetch(`/api/admin/applications/${application_id}`, { method: 'PUT', body: JSON.stringify(payload) })
+}
+
 export async function adminDeleteGig(gig_id: number): Promise<{ ok: boolean }> {
   return apiFetch(`/api/admin/gigs/${gig_id}`, { method: 'DELETE' })
 }
@@ -455,11 +548,5 @@ export type AdminUserRow = {
   email: string
   role: string
   created_at: string
-}
-
-export async function adminListUsers(params?: { q?: string }): Promise<AdminUserRow[]> {
-  const url = new URL('/api/users', window.location.origin)
-  if (params?.q) url.searchParams.set('q', params.q)
-  return apiFetch(url.pathname + url.search)
 }
 
